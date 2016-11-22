@@ -65,6 +65,7 @@ class WP_CLI_Oderland extends WP_CLI_Command {
 	 *
 	 *     wp oderland createdatabase wp101
 	 *
+   * @when before_wp_load
 	 */
    public function createDatabase( $args, $assoc_args ) {
 
@@ -116,6 +117,7 @@ class WP_CLI_Oderland extends WP_CLI_Command {
   	 *
   	 *     wp oderland createDatabaseUser wpadm1 k.Mfk0-2s7yewop5
   	 *
+     * @when before_wp_load
   	 */
      public function createDatabaseUser( $args, $assoc_args ) {
 
@@ -166,7 +168,7 @@ class WP_CLI_Oderland extends WP_CLI_Command {
     	 * ## EXAMPLES
     	 *
     	 *     wp oderland setDatabasePrivileges wpadm1 wp101
-    	 *
+    	 * @when before_wp_load
     	 */
        public function setDatabasePrivileges( $args, $assoc_args ) {
 
@@ -203,6 +205,7 @@ class WP_CLI_Oderland extends WP_CLI_Command {
       	 *
       	 *     wp oderland addAddonDomain domain1.com "domains/domain1.com" domain1
       	 *
+         * @when before_wp_load
       	 */
         public function addAddonDomain( $args, $assoc_args ) {
 
