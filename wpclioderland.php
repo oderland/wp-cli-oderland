@@ -6,6 +6,39 @@
  */
 class WP_CLI_Oderland extends WP_CLI_Command
 {
+    private function enforceNameLength($text, $type)
+    {
+        $restrictions = $this->getRestrictions();
+
+        if ($type === 'database')
+            $max = $restrictions['max_database_name_length'];
+        elseif ($type === 'username')
+            $max = $restrictions['max_username_length'];
+
+        // _ are stored as two characters, and the prefix always contains one.
+        $max -= 1;
+
+        if (strlen($text) <= $max)
+            return $text;
+
+        $new = substr($text, 0, $max);
+        WP_CLI::warning("'$text' is too long, truncating into '$new'.");
+        return $new;
+    }
+
+    private function enforceUsernamePrefix($text)
+    {
+        $restrictions = $this->getRestrictions();
+
+        // Check if prefix exists in string and at what position.
+        if (strpos($text, $restrictions['prefix']) === 0)
+            return $text;
+
+        $new = $restrictions['prefix'] . $text;
+        WP_CLI::warning("Prepending username prefix to '$text' => '$new'.");
+        return $new;
+    }
+
     /**
      * Function that returns prefix,max_username_length,max_database_name_length
      * as an assoc array
@@ -112,24 +145,10 @@ class WP_CLI_Oderland extends WP_CLI_Command
     {
         $restrictions = $this->getRestrictions();
 
-        $dbname = $args[0];
+        $dbname = $this->enforceUsernamePrefix($args[0]);
+        $dbname = $this->enforceNameLength($dbname, 'database');
         $dbname = escapeshellcmd($dbname);
 
-        // check if prefix exists and dbname length is valid.
-        $pos = strpos($dbname, $restrictions['prefix']);
-
-        if ($pos === false || $pos !== 0) {
-            $dbname = $restrictions['prefix'] . $dbname;
-            WP_CLI::warning('Database name has to be prefixed with: '
-                . $restrictions['prefix']);
-        }
-
-        // if dbname is too long, shorted it to max.
-        if (strlen($dbname) > $restrictions['max_database_name_length']) {
-            $dbname = substr($dbname, 0, $restrictions['max_database_name_length']);
-            WP_CLI::warning('Database name max length is '
-                . $restrictions['max_database_name_length']);
-        }
         $command = "/usr/bin/uapi Mysql create_database name=$dbname --output=json";
         $output = shell_exec($command);
 
@@ -163,24 +182,12 @@ class WP_CLI_Oderland extends WP_CLI_Command
     {
         $restrictions = $this->getRestrictions();
 
-        $username = escapeshellcmd($args[0]);
+        $username = $this->enforceUsernamePrefix($args[0]);
+        $username = $this->enforceNameLength($username, 'username');
+        $username = escapeshellcmd($username);
+
         $password = escapeshellcmd($args[1]);
 
-        // check if prefix exists and username length is valid.
-        $pos = strpos($username, $restrictions['prefix']);
-
-        if ($pos === false || $pos !== 0) {
-            $username = $restrictions['prefix'] . $username;
-            WP_CLI::warning('Database username has to be prefixed with: '
-                . $restrictions['prefix']);
-        }
-
-        // if username is too long, shorted it to max.
-        if (strlen($username) > $restrictions['max_username_length']) {
-            $username = substr($username, 0, $restrictions['max_username_length']);
-            WP_CLI::warning('Database username max length is '
-                . $restrictions['max_username_length']);
-        }
         $command = "/usr/bin/uapi Mysql create_user name=$username password=$password --output=json";
         $output = shell_exec($command);
 
@@ -211,8 +218,8 @@ class WP_CLI_Oderland extends WP_CLI_Command
      */
     public function setDatabasePrivileges($args, $assoc_args)
     {
-        $username = escapeshellcmd($args[0]);
-        $database = escapeshellcmd($args[1]);
+        $username = escapeshellcmd($this->enforceUsernamePrefix($args[0]));
+        $database = escapeshellcmd($this->enforceUsernamePrefix($args[1]));
         $command = "/usr/bin/uapi Mysql set_privileges_on_database user=$username database=$database privileges='ALL PRIVILEGES' --output=json";
         $output = shell_exec($command);
 
