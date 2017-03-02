@@ -1,20 +1,20 @@
 {
-	"name": "oderland/wp-cli-oderland",
-	"description": "Manage Databases and Domains for Oderland Hosting Services",
-	"type": "wp-cli-package",
-	"homepage": "https://github.com/oderland/wp-cli-oderland",
-	"license": "MIT",
-	"authors": [
-   	    {
-      	        "name": "Package Maintainer",
-                "email": "david@oderland.se",
-                "homepage": "https://www.oderland.se"
-            }
-        ],
-	"require": {
-		"php": ">=5.3.29"
-	},
-	"autoload": {
-		"files": [ "wpclioderland.php" ]
-	}
+    "name": "oderland/wp-cli-oderland",
+    "description": "Manage Databases and Domains for Oderland Hosting Services",
+    "type": "wp-cli-package",
+    "homepage": "https://github.com/oderland/wp-cli-oderland",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Package Maintainer",
+            "email": "david@oderland.se",
+            "homepage": "https://www.oderland.se"
+        }
+    ],
+    "require": {
+        "php": ">=5.3.29"
+    },
+    "autoload": {
+        "files": [ "wpclioderland.php" ]
+    }
 }
