@@ -116,7 +116,9 @@ class WP_CLI_Oderland extends WP_CLI_Command
         if (!$subdomain) {
             $subdomain = $domain;
         }
-        $command = "/usr/bin/cpapi2 AddonDomain addaddondomain dir=$directory newdomain=$domain subdomain=$subdomain --output=json 2> /dev/null";
+        $command = "/usr/bin/cpapi2 AddonDomain addaddondomain"
+            . " dir=$directory newdomain=$domain subdomain=$subdomain"
+            . " --output=json 2>/dev/null";
         $output = shell_exec($command);
 
         try {
@@ -125,7 +127,8 @@ class WP_CLI_Oderland extends WP_CLI_Command
             WP_CLI::error($e->getMessage());
         }
 
-        WP_CLI::success('Addon domain was added: ' . $domain . ' with document root: ' .urldecode($directory));
+        WP_CLI::success("Addon domain was added: $domain with document root: "
+            . urldecode($directory));
     }
 
     /**
@@ -151,7 +154,8 @@ class WP_CLI_Oderland extends WP_CLI_Command
         $dbname = $this->enforceNameLength($dbname, 'database');
         $dbname = escapeshellcmd($dbname);
 
-        $command = "/usr/bin/uapi Mysql create_database name=$dbname --output=json";
+        $command = "/usr/bin/uapi Mysql create_database"
+            . " name=$dbname --output=json";
         $output = shell_exec($command);
 
         try {
@@ -191,7 +195,8 @@ class WP_CLI_Oderland extends WP_CLI_Command
 
         $password = escapeshellcmd($args[1]);
 
-        $command = "/usr/bin/uapi Mysql create_user name=$username password=$password --output=json";
+        $command = "/usr/bin/uapi Mysql create_user"
+            . " name=$username password=$password --output=json";
         $output = shell_exec($command);
 
         try {
@@ -224,7 +229,9 @@ class WP_CLI_Oderland extends WP_CLI_Command
     {
         $username = escapeshellcmd($this->enforceUsernamePrefix($args[0]));
         $database = escapeshellcmd($this->enforceUsernamePrefix($args[1]));
-        $command = "/usr/bin/uapi Mysql set_privileges_on_database user=$username database=$database privileges='ALL PRIVILEGES' --output=json";
+        $command = "/usr/bin/uapi Mysql set_privileges_on_database"
+            . " user=$username database=$database privileges='ALL PRIVILEGES'"
+            . " --output=json";
         $output = shell_exec($command);
 
         try {
@@ -233,7 +240,8 @@ class WP_CLI_Oderland extends WP_CLI_Command
             WP_CLI::error($e->getMessage());
         }
 
-        WP_CLI::success('Set all privileges for user: ' . $username .' on database ' . $database);
+        WP_CLI::success(
+            "Set all privileges for user: $username on database $database");
     }
 }
 
