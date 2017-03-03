@@ -119,12 +119,12 @@ class WP_CLI_Oderland extends WP_CLI_Command
      *
      * ## EXAMPLES
      *
-     *     wp oderland addAddonDomain domain1.com "domains/domain1.com" domain1
+     *     wp oderland domain-add domain1.com domains/domain1.com
      *
      * @when before_wp_load
-     * @subcommand add-addon-domain
+     * @subcommand domain-add
      */
-    public function addAddonDomain($args, $assoc_args)
+    public function addonDomainCreate($args, $assoc_args)
     {
         $domain = urlencode(escapeshellcmd($args[0]));
         $directory = urlencode(escapeshellcmd($args[1]));
@@ -157,12 +157,12 @@ class WP_CLI_Oderland extends WP_CLI_Command
      *
      * ## EXAMPLES
      *
-     *     wp oderland createdatabase wp101
+     *     wp oderland db-create wp101
      *
      * @when before_wp_load
-     * @subcommand create-database
+     * @subcommand db-create
      */
-    public function createDatabase($args, $assoc_args)
+    public function dbCreate($args, $assoc_args)
     {
         $restrictions = $this->getRestrictions();
 
@@ -196,12 +196,12 @@ class WP_CLI_Oderland extends WP_CLI_Command
      *
      * ## EXAMPLES
      *
-     *     wp oderland createDatabaseUser wpadm1 k.Mfk0-2s7yewop5
+     *     wp oderland db-user-create wpadm1 k.Mfk0-2s7yewop5
      *
      * @when before_wp_load
-     * @subcommand create-database-user
+     * @subcommand db-user-create
      */
-    public function createDatabaseUser($args, $assoc_args)
+    public function dbUserCreate($args, $assoc_args)
     {
         $restrictions = $this->getRestrictions();
 
@@ -240,11 +240,11 @@ class WP_CLI_Oderland extends WP_CLI_Command
      *
      * ## EXAMPLES
      *
-     *     wp oderland setDatabasePrivileges wpadm1 wp101
+     *     wp oderland db-privileges-create wpadm1 wp101
      * @when before_wp_load
-     * @subcommand set-database-privileges
+     * @subcommand db-privileges-create
      */
-    public function setDatabasePrivileges($args, $assoc_args)
+    public function dbPrivilegesCreate($args, $assoc_args)
     {
         $username = escapeshellcmd($this->enforceUsernamePrefix($args[0]));
         $database = escapeshellcmd($this->enforceUsernamePrefix($args[1]));
