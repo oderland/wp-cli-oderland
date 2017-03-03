@@ -39,6 +39,22 @@ class WP_CLI_Oderland extends WP_CLI_Command
         return $new;
     }
 
+    private function generatePassword($length)
+    {
+        if (($fh = fopen('/dev/urandom', 'r')) === false)
+            die("Unable to generate password: Failed opening /dev/urandom\n");
+
+        if (($data = fread($fh, $length)) === false)
+            die("Unable to generate password: Failed reading /dev/urandom\n");
+
+        $chars = '23456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+        $pw = '';
+        foreach (unpack('C*', $data) as $num)
+            $pw .= $chars[$num % strlen($chars)];
+
+        return $pw;
+    }
+
     /**
      * Function that returns prefix,max_username_length,max_database_name_length
      * as an assoc array
@@ -175,8 +191,8 @@ class WP_CLI_Oderland extends WP_CLI_Command
      * <username>
      * : The database username
      *
-     * <password>
-     * : The database user password
+     * [<password>]
+     * : The database user password. Automatically generated if not given.
      *
      * ## EXAMPLES
      *
@@ -193,7 +209,10 @@ class WP_CLI_Oderland extends WP_CLI_Command
         $username = $this->enforceNameLength($username, 'username');
         $username = escapeshellcmd($username);
 
-        $password = escapeshellcmd($args[1]);
+        if (empty($args[1]))
+            $password = $this->generatePassword(20);
+        else
+            $password = escapeshellcmd($args[1]);
 
         $command = "/usr/bin/uapi Mysql create_user"
             . " name=$username password=$password --output=json";
