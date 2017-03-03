@@ -1,8 +1,8 @@
 {
-	"name": "sommarnatt/wp-cli-oderland",
+	"name": "oderland/wp-cli-oderland",
 	"description": "Manage Databases and Domains for Oderland Hosting Services",
 	"type": "wp-cli-package",
-	"homepage": "https://github.com/sommarnatt/wp-cli-oderland",
+	"homepage": "https://github.com/oderland/wp-cli-oderland",
 	"license": "MIT",
 	"authors": [
    	    {
