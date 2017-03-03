@@ -55,6 +55,30 @@ class WP_CLI_Oderland extends WP_CLI_Command
         return $pw;
     }
 
+    // Returns a list of the names of the user's current databases.
+    private function getDatabaseNames()
+    {
+        $data = $this->runApi('cpapi2', 'MysqlFE', 'listdbs', array(), false);
+
+        $databases = array();
+        foreach ($data as $db)
+            $databases[] = $db['db'];
+
+        return $databases;
+    }
+
+    // Returns a list of the names of the user's current database users.
+    private function getDatabaseUserNames()
+    {
+        $data = $this->runApi('cpapi2', 'MysqlFE', 'listusers', array(), false);
+
+        $users = array();
+        foreach ($data as $user)
+            $users[] = $user;
+
+        return $users;
+    }
+
     /**
      * Function that returns prefix,max_username_length,max_database_name_length
      * as an assoc array
@@ -246,6 +270,35 @@ class WP_CLI_Oderland extends WP_CLI_Command
 
         WP_CLI::success(
             "Set all privileges for user: $username on database $database");
+    }
+
+    /**
+     * Create a database, a database user, and set database privileges for the
+     * new user. Names and passwords are automatically generated.
+     *
+     * ## EXAMPLES
+     *
+     *     wp oderland db-quick-setup
+     * @when before_wp_load
+     * @subcommand db-quick-setup
+     */
+    public function dbQuickSetup($args, $assoc_args)
+    {
+        do {
+            $db_name = $this->enforceUsernamePrefix(
+                'd' . $this->generatePassword(4));
+            $db_name = $this->enforceNameLength($db_name, 'database');
+        } while (in_array($db_name, $this->getDatabaseNames()));
+
+        do {
+            $db_user = $this->enforceUsernamePrefix(
+                'u' . $this->generatePassword(4));
+            $db_user = $this->enforceNameLength($db_user, 'username');
+        } while (in_array($db_user, $this->getDatabaseUserNames()));
+
+        $this->dbCreate(array($db_name), array());
+        $this->dbUserCreate(array($db_user), array());
+        $this->dbPrivilegesCreate(array($db_user, $db_name), array());
     }
 }
 
