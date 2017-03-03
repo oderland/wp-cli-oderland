@@ -61,46 +61,48 @@ class WP_CLI_Oderland extends WP_CLI_Command
      */
     private function getRestrictions()
     {
-        $command = "/usr/bin/uapi Mysql get_restrictions --output=json";
-        $output = shell_exec($command);
-
-        try {
-            $data = $this->parseShellOutput($output);
-        } catch (Exception $e) {
-            WP_CLI::error($e->getMessage());
-        }
-
-        // return array containing:
-        // prefix,max_username_length,max_database_name_length
-        return $data['result']['data'];
+        return $this->runApi(
+            'uapi', 'Mysql', 'get_restrictions', array(), true);
     }
 
-    private function parseCpapi2Output($output)
+    private function runApi($api, $module, $func, $kwargs, $check)
     {
-        if (!$data = json_decode($output, true))
-            throw new Exception("Failed to get decode json output: "
-                . json_last_error());
+        $cmdline = "/usr/bin/$api --output=json $module $func";
+        foreach ($kwargs as $key => $value)
+            $cmdline .= ' ' . escapeshellarg("$key=$value");
 
-        if ($data['cpanelresult']['data'][0]['result'] !== 1) {
-            $errors = $data['cpanelresult']['error'];
-            throw new Exception ($errors);
+        WP_CLI::debug($cmdline);
+
+        $output = shell_exec($cmdline);
+
+        $data = json_decode($output, true);
+        if (json_last_error())
+            throw new Exception(
+                "Failed to get decode json output: " . json_last_error_msg());
+
+        if ($api === 'uapi') {
+            if (!isset($data['result']))
+                WP_CLI::error("Output did not contain cpanelresult->data");
+
+            if ($check)
+                if ($data['result']['status'] !== 1)
+                    WP_CLI::error(implode("\r\n", $data['result']['errors']));
+
+            return $data['result']['data'];
+
+        } elseif ($api === 'cpapi2') {
+            if (!isset($data['cpanelresult']['data']))
+                WP_CLI::error("Output did not contain cpanelresult->data");
+
+            if ($check)
+                if ($data['cpanelresult']['data'][0]['result'] !== 1)
+                    WP_CLI::error($data['cpanelresult']['error']);
+
+            return $data['cpanelresult']['data'];
+
+        } else {
+            return $data;
         }
-
-        return $data;
-    }
-
-    private function parseShellOutput($output)
-    {
-        if (!$data = json_decode($output, true))
-            throw new Exception("Failed to get decode json output: "
-                . $json_last_error());
-
-        if ($data['result']['status'] !== 1) {
-            $errors = implode("\r\n", $data['result']['errors']);
-            throw new Exception ($errors);
-        }
-
-        return $data;
     }
 
     /**
@@ -126,25 +128,20 @@ class WP_CLI_Oderland extends WP_CLI_Command
      */
     public function addonDomainCreate($args, $assoc_args)
     {
-        $domain = urlencode(escapeshellcmd($args[0]));
-        $directory = urlencode(escapeshellcmd($args[1]));
-        $subdomain = urlencode(escapeshellcmd($assoc_args['subdomain']));
-        if (!$subdomain) {
-            $subdomain = $domain;
-        }
-        $command = "/usr/bin/cpapi2 AddonDomain addaddondomain"
-            . " dir=$directory newdomain=$domain subdomain=$subdomain"
-            . " --output=json 2>/dev/null";
-        $output = shell_exec($command);
+        $domain = $args[0];
+        $directory = $args[1];
+        $sub = ($assoc_args['subdomain'] ? $assoc_args['subdomain'] : $domain);
 
-        try {
-            $data = $this->parseCpapi2Output($output);
-        } catch (Exception $e) {
-            WP_CLI::error($e->getMessage());
-        }
+        $opts = array(
+            'dir' => urlencode($directory),
+            'newdomain' => urlencode($domain),
+            'subdomain' => urlencode($sub)
+        );
 
-        WP_CLI::success("Addon domain was added: $domain with document root: "
-            . urldecode($directory));
+        $this->runApi('cpapi2', 'AddonDomain', 'addaddondomain', $opts, true);
+
+        WP_CLI::success(
+            "Addon domain was added: $domain with document root: $directory");
     }
 
     /**
@@ -168,17 +165,10 @@ class WP_CLI_Oderland extends WP_CLI_Command
 
         $dbname = $this->enforceUsernamePrefix($args[0]);
         $dbname = $this->enforceNameLength($dbname, 'database');
-        $dbname = escapeshellcmd($dbname);
 
-        $command = "/usr/bin/uapi Mysql create_database"
-            . " name=$dbname --output=json";
-        $output = shell_exec($command);
+        $opts = array('name' => $dbname);
 
-        try {
-            $data = $this->parseShellOutput($output);
-        } catch (Exception $e) {
-            WP_CLI::error($e->getMessage());
-        }
+        $this->runApi('uapi', 'Mysql', 'create_database', $opts, true);
 
         WP_CLI::success('Created database: ' . $dbname);
     }
@@ -207,22 +197,18 @@ class WP_CLI_Oderland extends WP_CLI_Command
 
         $username = $this->enforceUsernamePrefix($args[0]);
         $username = $this->enforceNameLength($username, 'username');
-        $username = escapeshellcmd($username);
 
         if (empty($args[1]))
             $password = $this->generatePassword(20);
         else
-            $password = escapeshellcmd($args[1]);
+            $password = $args[1];
 
-        $command = "/usr/bin/uapi Mysql create_user"
-            . " name=$username password=$password --output=json";
-        $output = shell_exec($command);
+        $opts = array(
+            'name' => $username,
+            'password' => $password
+        );
 
-        try {
-            $data = $this->parseShellOutput($output);
-        } catch (Exception $e) {
-            WP_CLI::error($e->getMessage());
-        }
+        $this->runApi('uapi', 'Mysql', 'create_user', $opts, true);
 
         WP_CLI::success('Created database user: ' . $username);
     }
@@ -246,18 +232,17 @@ class WP_CLI_Oderland extends WP_CLI_Command
      */
     public function dbPrivilegesCreate($args, $assoc_args)
     {
-        $username = escapeshellcmd($this->enforceUsernamePrefix($args[0]));
-        $database = escapeshellcmd($this->enforceUsernamePrefix($args[1]));
-        $command = "/usr/bin/uapi Mysql set_privileges_on_database"
-            . " user=$username database=$database privileges='ALL PRIVILEGES'"
-            . " --output=json";
-        $output = shell_exec($command);
+        $username = $this->enforceUsernamePrefix($args[0]);
+        $database = $this->enforceUsernamePrefix($args[1]);
 
-        try {
-            $data = $this->parseShellOutput($output);
-        } catch (Exception $e) {
-            WP_CLI::error($e->getMessage());
-        }
+        $opts = array(
+            'user' => $username,
+            'database' => $database,
+            'privileges' => 'ALL PRIVILEGES'
+        );
+
+        $this->runApi(
+            'uapi', 'Mysql', 'set_privileges_on_database', $opts, true);
 
         WP_CLI::success(
             "Set all privileges for user: $username on database $database");
