@@ -80,6 +80,46 @@ class WP_CLI_Oderland extends WP_CLI_Command
     }
 
     /**
+     * Returns an array of the user's domains, where each key is the domain
+     * name and the value an array containing docroot+domain type.
+     */
+    private function getDomainData()
+    {
+        $data = $this->runApi(
+            'uapi', 'DomainInfo', 'domains_data', array(), false);
+
+        $domains = array(
+            $data['main_domain']['domain'] => array(
+                'documentroot' => $data['main_domain']['documentroot'],
+                'type' => 'main'
+            ),
+        );
+
+        if (isset($data['parked_domains']))
+            foreach ($data['parked_domains'] as $domain)
+                $domains[$domain] = array(
+                    'documentroot' => $data['main_domain']['documentroot'],
+                    'type' => 'parked'
+                );
+
+        if (isset($data['addon_domains']))
+            foreach ($data['addon_domains'] as $domain)
+                $domains[$domain['domain']] = array(
+                    'documentroot' => $domain['documentroot'],
+                    'type' => 'addon'
+                );
+
+        if (isset($data['sub_domains']))
+            foreach ($data['sub_domains'] as $domain)
+                $domains[$domain['domain']] = array(
+                    'documentroot' => $domain['documentroot'],
+                    'type' => 'sub'
+                );
+
+        return $domains;
+    }
+
+    /**
      * Function that returns prefix,max_username_length,max_database_name_length
      * as an assoc array
      */
@@ -299,6 +339,40 @@ class WP_CLI_Oderland extends WP_CLI_Command
         $this->dbCreate(array($db_name), array());
         $this->dbUserCreate(array($db_user), array());
         $this->dbPrivilegesCreate(array($db_user, $db_name), array());
+    }
+
+    /**
+     * List domains linked to the account.
+     *
+     * ## EXAMPLES
+     *
+     *     wp oderland domain-list
+     *
+     * @when before_wp_load
+     * @subcommand domain-list
+     */
+    public function domainList($args, $assoc_args)
+    {
+        $domains = $this->getDomainData();
+
+        $max_len_domain = 0;
+        foreach ($domains as $domain_name => $domain_data)
+            if (strlen($domain_name) > $max_len_domain)
+                $max_len_domain = strlen($domain_name);
+
+        printf(
+            "%7s | %{$max_len_domain}s | %s\n",
+            'type', 'name', 'document_root'
+        );
+        echo str_repeat('-', 8) . '|' . str_repeat('-', 1+$max_len_domain+1)
+            . '|' . str_repeat('-', 1+13) . "\n";
+        foreach ($domains as $domain_name => $domain_data)
+            printf(
+                "%7s | %{$max_len_domain}s | %s\n",
+                $domain_data['type'],
+                $domain_name,
+                $domain_data['documentroot']
+            );
     }
 }
 
