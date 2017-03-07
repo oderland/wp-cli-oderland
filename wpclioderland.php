@@ -129,6 +129,18 @@ class WP_CLI_Oderland extends WP_CLI_Command
             'uapi', 'Mysql', 'get_restrictions', array(), true);
     }
 
+    private function getUriPathRelativeHome($docroot, $uripath)
+    {
+        // The homedir is always at three levels depth in these systems =>
+        // /*/*/ is stripped, leaving us with e.g. "public_html/domain", i.e.
+        // the path to the docroot relative to the homedir.
+        $docroot_rh = implode('/', array_slice(explode('/', $docroot), 3));
+        // The path to the dir to be migrated relative to the homedir.
+        $uripath_rh = "$docroot_rh/$uripath";
+
+        return $uripath_rh;
+    }
+
     private function odercacheConfigAdd($domain, $uripath)
     {
         if (!is_array($this->odercache['cfg']))
@@ -224,15 +236,10 @@ class WP_CLI_Oderland extends WP_CLI_Command
         // The full/absolute path to the cachedir.
         $uripath_f = "$docroot/$uripath";
 
-        // The homedir is always at three levels depth in these systems =>
-        // /*/*/ is stripped, leaving us with e.g. "public_html/domain", i.e.
-        // the path to the docroot relative to the homedir.
-        $docroot_rh = implode('/', array_slice(explode('/', $docroot), 3));
-        // The path to the dir to be migrated relative to the homedir.
-        $uripath_rh = "$docroot_rh/$uripath";
-
         if (is_file($uripath_f))
             WP_CLI::error("Given directory '$uripath_f' is actually a file.");
+
+        $uripath_rh = $this->getUriPathRelativeHome($docroot, $uripath);
 
         if ($mode === 'enable') {
             $this->odercacheManageEnable($uripath_f, $uripath_rh);
