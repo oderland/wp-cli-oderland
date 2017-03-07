@@ -215,6 +215,11 @@ class WP_CLI_Oderland extends WP_CLI_Command
 
         $domains = $this->getDomainData();
 
+        if ($mode === 'list') {
+            $this->odercacheManageList($domains);
+            return;
+        }
+
         $uripath = $args[1];
         // Remove any slash from start and beginning of string.
         $uripath = preg_replace("#(^/+|/+$)#", "", $uripath);
@@ -336,6 +341,55 @@ class WP_CLI_Oderland extends WP_CLI_Command
                 WP_CLI::error(
                     "Unable to create parent directory '$dir'.");
         }
+    }
+
+    private function odercacheManageList($domains)
+    {
+        $this->odercacheConfigLoad();
+
+        $odercaches = array();
+        $max_len_domain = 0;
+        foreach ($this->odercache['cfg'] as $domain => $uripaths) {
+            WP_CLI::debug("Found domain in config: $domain");
+            if (!isset($domains[$domain])) {
+                WP_CLI::debug("Ignoring '$domain' (not added to the account).");
+                continue;
+            }
+
+            $docroot = $domains[$domain]['documentroot'];
+
+            foreach ($uripaths as $uripath => $uripath_dummy) {
+                WP_CLI::debug("Found uripath in config: $uripath");
+                $uripath_rh = $this->getUriPathRelativeHome($docroot, $uripath);
+                $uripath_oc = $this->odercache['dir'] . "/$uripath_rh";
+
+                if (!is_dir($uripath_oc)) {
+                    WP_CLI::debug("Ignoring '$uripath' not found in odercache "
+                        . "($uripath_oc)");
+                    continue;
+                }
+
+                $uripath_oc_esc = escapeshellarg($uripath_oc);
+                $uripath_oc_size = explode("\t", end($this->runCmd(
+                    "du -sm -- $uripath_oc_esc 2>/dev/null",
+                    "Failed executing du for '$uripath_oc'"
+                )[1]))[0];
+
+                $odercaches[] = array($domain, $uripath, $uripath_oc_size);
+            }
+
+            if (strlen($domain) > $max_len_domain)
+                $max_len_domain = strlen($domain);
+        }
+
+        printf("megabytes | %{$max_len_domain}s | directory\n", 'domain');
+        echo str_repeat('-', 10) . '|' . str_repeat('-', 1+$max_len_domain+1)
+            . '|' . str_repeat('-', 1+9) . "\n";
+        foreach ($odercaches as $odercache_data)
+            printf(
+                "%9s | %{$max_len_domain}s | %s\n",
+                $odercache_data[2], $odercache_data[0], $odercache_data[1]
+            );
     }
 
     private function runApi($api, $module, $func, $kwargs, $check)
@@ -625,6 +679,20 @@ class WP_CLI_Oderland extends WP_CLI_Command
     public function odercacheEnable($args, $assoc_args)
     {
         $this->odercacheManage('enable', $args, $assoc_args);
+    }
+
+    /**
+     * Lists enabled odercaches.
+     *
+     * ## EXAMPLES
+     *
+     *     wp oderland odercache-list
+     * @when before_wp_load
+     * @subcommand odercache-list
+     */
+    public function odercacheList($args, $assoc_args)
+    {
+        $this->odercacheManage('list', $args, $assoc_args);
     }
 
 }
