@@ -135,9 +135,8 @@ class WP_CLI_Oderland extends WP_CLI_Command
         foreach ($kwargs as $key => $value)
             $cmdline .= ' ' . escapeshellarg("$key=$value");
 
-        WP_CLI::debug($cmdline);
-
-        $output = shell_exec($cmdline);
+        $output = implode("\n", $this->runCmd(
+            $cmdline, "Failed running $module/$func $api API call")[1]);
 
         $data = json_decode($output, true);
         if (json_last_error())
@@ -167,6 +166,22 @@ class WP_CLI_Oderland extends WP_CLI_Command
         } else {
             return $data;
         }
+    }
+
+    // Executes given commandline, and if return code is >0, die with given
+    // error message. On success, return an array where [0] = the return code
+    // and [1] = an array of the stdout lines.
+    private function runCmd($cmdline, $errmsg)
+    {
+        WP_CLI::debug("Executing command: $cmdline");
+        $ret = null;
+        $out = null;
+        exec($cmdline, $out, $ret);
+        WP_CLI::debug("Executed command return code: $ret");
+        WP_CLI::debug("Executed command output:\n" . implode("\n", $out) ."\n");
+        if ($ret !== 0)
+            WP_CLI::error($errmsg);
+        return array($ret, $out);
     }
 
     /**
