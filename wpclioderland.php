@@ -129,12 +129,72 @@ class WP_CLI_Oderland extends WP_CLI_Command
             'uapi', 'Mysql', 'get_restrictions', array(), true);
     }
 
+    private function odercacheConfigAdd($domain, $uripath)
+    {
+        if (!is_array($this->odercache['cfg']))
+            $this->odercacheConfigLoad();
+
+        if (!isset($this->odercache['cfg'][$domain]))
+            $this->odercache['cfg'][$domain] = array();
+
+        WP_CLI::debug("Adding $domain:$uripath to odercache config.");
+
+        $this->odercache['cfg'][$domain][$uripath] = array();
+
+        $this->odercacheConfigSave();
+    }
+
+    private function odercacheConfigDel($domain, $uripath)
+    {
+        if (!is_array($this->odercache['cfg']))
+            $this->odercacheConfigLoad();
+
+        WP_CLI::debug("Deleting $domain:$uripath from odercache config.");
+
+        unset($this->odercache['cfg'][$domain][$uripath]);
+
+        if(empty($this->odercache['cfg'][$domain]))
+            unset($this->odercache['cfg'][$domain]);
+
+        $this->odercacheConfigSave();
+    }
+
+    private function odercacheConfigLoad()
+    {
+        WP_CLI::debug("Loading odercache configuration: " .
+            $this->odercache['cfg_file']);
+
+        $data = '{}';
+        if (is_file($this->odercache['cfg_file']))
+            $data = file_get_contents($this->odercache['cfg_file']);
+
+        $cfg = json_decode($data, $assoc=true);
+        if (json_last_error())
+            WP_CLI::error("Failed loading odercache config " .
+                "({$this->odercache['cfg_file']}): " . json_last_error_msg());
+
+        $this->odercache['cfg'] = $cfg;
+    }
+
+    private function odercacheConfigSave()
+    {
+        WP_CLI::debug("Saving odercache configuration: " .
+            $this->odercache['cfg_file']);
+
+        file_put_contents(
+            $this->odercache['cfg_file'],
+            json_encode($this->odercache['cfg'], JSON_PRETTY_PRINT) . "\n"
+        );
+
+    }
+
     private function odercacheManage($mode, $args, $assoc_args)
     {
         $home = $_SERVER['HOME'];
         $this->odercache = array(
             'dir' => "$home/odercache",
-            'cfg_dir' => "$home/.oderland/odercache/dirs"
+            'cfg_dir' => "$home/.oderland/odercache/dirs",
+            'cfg_file' => "$home/.oderland/odercache/conf.json"
         );
 
         if (!is_dir($this->odercache['dir']))
@@ -176,6 +236,7 @@ class WP_CLI_Oderland extends WP_CLI_Command
 
         if ($mode === 'enable') {
             $this->odercacheManageEnable($uripath_f, $uripath_rh);
+            $this->odercacheConfigAdd($domain, $uripath);
         }
         WP_CLI::success("Successfully {$mode}d odercache for '$uripath'" .
             " on domain '$domain'.");
