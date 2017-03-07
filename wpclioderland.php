@@ -129,6 +129,147 @@ class WP_CLI_Oderland extends WP_CLI_Command
             'uapi', 'Mysql', 'get_restrictions', array(), true);
     }
 
+    private function odercacheManage($mode, $args, $assoc_args)
+    {
+        $home = $_SERVER['HOME'];
+        $this->odercache = array(
+            'dir' => "$home/odercache",
+            'cfg_dir' => "$home/.oderland/odercache/dirs"
+        );
+
+        if (!is_dir($this->odercache['dir']))
+            WP_CLI::error(
+                "odercache directory not found: " . $this->odercache['dir']);
+
+        $domains = $this->getDomainData();
+
+        $uripath = $args[1];
+        // Remove any slash from start and beginning of string.
+        $uripath = preg_replace("#(^/+|/+$)#", "", $uripath);
+        // Remove any redundant slashes.
+        $uripath = preg_replace("#/+#", "/", $uripath);
+        // Make sure there's no . or .. components in the dir path.
+        if (preg_match("#(^|/)\.\.?(/|$)#", $uripath))
+            WP_CLI::error("Given directory contains dot path components.");
+
+        $domain = $args[0];
+
+        if (!isset($domains[$domain]))
+            WP_CLI::error("Given domain '$domain' not found on the account.");
+
+        // The full/absolute filesystem path to the docroot.
+        $docroot = $domains[$domain]['documentroot'];
+        WP_CLI::debug("Domain document root: $docroot");
+
+        // The full/absolute path to the cachedir.
+        $uripath_f = "$docroot/$uripath";
+
+        // The homedir is always at three levels depth in these systems =>
+        // /*/*/ is stripped, leaving us with e.g. "public_html/domain", i.e.
+        // the path to the docroot relative to the homedir.
+        $docroot_rh = implode('/', array_slice(explode('/', $docroot), 3));
+        // The path to the dir to be migrated relative to the homedir.
+        $uripath_rh = "$docroot_rh/$uripath";
+
+        if (is_file($uripath_f))
+            WP_CLI::error("Given directory '$uripath_f' is actually a file.");
+
+        if ($mode === 'enable') {
+            $this->odercacheManageEnable($uripath_f, $uripath_rh);
+        }
+        WP_CLI::success("Successfully {$mode}d odercache for '$uripath'" .
+            " on domain '$domain'.");
+    }
+
+    private function odercacheManageEnable($uripath_f, $uripath_rh)
+    {
+        if (is_link($uripath_f))
+            WP_CLI::error("Given directory '$uripath_f' is already a symlink.");
+
+        if (is_dir($uripath_f)) {
+            WP_CLI::debug("$uripath_f exists and is a directory; migrate it.");
+            $this->odercacheManageEnableMigrate($uripath_f, $uripath_rh);
+        } else {
+            WP_CLI::debug("'$uripath_f' does not exist, create required dirs.");
+            $this->odercacheManageEnableNoMigrate($uripath_f, $uripath_rh);
+        }
+
+        WP_CLI::debug("Creating symlink '$uripath_f' -> " .
+            "{$this->odercache['dir']}/$uripath_rh'.");
+
+        if (!symlink("{$this->odercache['dir']}/$uripath_rh", "$uripath_f"))
+            WP_CLI::error("Failed creating symlink '$uripath_f' -> " .
+                "'{$this->odercache['dir']}/$uripath_rh'.");
+    }
+
+    private function odercacheManageEnableMigrate($uripath_f, $uripath_rh)
+    {
+        $homedir_esc = escapeshellarg($_SERVER['HOME']);
+        $uripath_f_esc = escapeshellarg($uripath_f);
+        $uripath_rh_esc = escapeshellarg($uripath_rh);
+        $odercache_cfg_dir_esc = escapeshellarg($this->odercache['cfg_dir']);
+        $odercache_dir_esc = escapeshellarg($this->odercache['dir']);
+
+        $odercache_avail = end($this->runCmd(
+            "df -B1 --output=avail {$this->odercache['dir']} 2>/dev/null",
+            "Failed executing df for '{$this->odercache['dir']}'"
+        )[1]);
+        if (!ctype_digit($odercache_avail))
+            WP_CLI::error("Unable to get available disk space for " .
+                $this->odercache['dir'] . '.');
+
+        $uripath_size = explode("\t", end($this->runCmd(
+            "du -sb $uripath_f_esc 2>/dev/null",
+            "Failed executing du for '$uripath_f'"
+        )[1]))[0];
+
+        if (($uripath_size + 1024*1024) > $odercache_avail)
+            WP_CLI::error("Insufficient space in odercache for '$uripath_f'");
+
+        $cmdline = "( cd $homedir_esc && ";
+        $cmdline .= "find $uripath_rh_esc -xdev -type d ";
+        $cmdline .= "-exec mkdir -pv -- $odercache_cfg_dir_esc/{} \; ";
+        $cmdline .= "-exec mkdir -pv -- $odercache_dir_esc/{} \; ";
+        $cmdline .= ");";
+        $this->runCmd($cmdline,
+            "Failed while creating odercache dir tree.");
+
+        $cmdline = "( cd $homedir_esc && find $uripath_rh_esc -xdev -type f ";
+        $cmdline .= "-exec cp -pv -- {} $odercache_dir_esc/{} \; ";
+        $cmdline .= ");";
+        $this->runCmd($cmdline,
+            "Failed while migrating data to odercache.");
+
+        // One path component removed from the end of $uripath_f
+        $uripath_parent = implode(
+            '/', array_slice(explode('/', $uripath_f), 0, -1));
+
+        $uripath_base = end(explode('/', $uripath_f));
+        $uripath_f_bak = "$uripath_parent/.bak_" . time() . "_$uripath_base";
+        $cmdline = "mv -v -- $uripath_f_esc " . escapeshellarg($uripath_f_bak);
+        $this->runCmd($cmdline,
+            "Failed creating backup '$uripath_f' -> '$dir_bak_dst'.");
+    }
+
+    private function odercacheManageEnableNoMigrate($uripath_f, $uripath_rh)
+    {
+        // One path component removed from the end of $uripath_f
+        $dirs = array(
+            implode('/', array_slice(explode('/', $uripath_f), 0, -1)),
+            $this->odercache['dir'] . "/$uripath_rh",
+            $this->odercache['cfg_dir'] . "/$uripath_rh"
+        );
+        foreach ($dirs as $dir) {
+            if (!is_dir($dir)) {
+                WP_CLI::debug("Creating missing directory '$dir'.");
+                mkdir($dir, $mode=0711, $recursive=true);
+            }
+            if (!is_dir($dir))
+                WP_CLI::error(
+                    "Unable to create parent directory '$dir'.");
+        }
+    }
+
     private function runApi($api, $module, $func, $kwargs, $check)
     {
         $cmdline = "/usr/bin/$api --output=json $module $func";
@@ -389,6 +530,35 @@ class WP_CLI_Oderland extends WP_CLI_Command
                 $domain_data['documentroot']
             );
     }
+
+    /**
+     * Enables odercache for the given domain's directory. The data found in the
+     * directory will be migrated to odercache, and the original directory will
+     * be converted into a symlink into odercache.
+     *
+     * DO NOTE that the migrated data will become volatile and might be erased
+     * in the future. There are no guarantees in regards to persistency. You
+     * must only migrate data that will be re-created in case it would perish.
+     *
+     * ## OPTIONS
+     *
+     * <domain>
+     * : The site's domain.
+     *
+     * <directory>
+     * : The directory (relative to the domain's root) to migrate to odercache.
+     *
+     * ## EXAMPLES
+     *
+     *     wp oderland odercache-enable
+     * @when before_wp_load
+     * @subcommand odercache-enable
+     */
+    public function odercacheEnable($args, $assoc_args)
+    {
+        $this->odercacheManage('enable', $args, $assoc_args);
+    }
+
 }
 
 WP_CLI::add_command('oderland', 'WP_CLI_Oderland');
