@@ -249,9 +249,35 @@ class WP_CLI_Oderland extends WP_CLI_Command
         if ($mode === 'enable') {
             $this->odercacheManageEnable($uripath_f, $uripath_rh);
             $this->odercacheConfigAdd($domain, $uripath);
+        } elseif ($mode === 'disable') {
+            $this->odercacheManageDisable($uripath_f, $uripath_rh);
+            $this->odercacheConfigDel($domain, $uripath);
         }
         WP_CLI::success("Successfully {$mode}d odercache for '$uripath'" .
             " on domain '$domain'.");
+    }
+
+    private function odercacheManageDisable($uripath_f, $uripath_rh)
+    {
+        if (!is_link($uripath_f))
+            WP_CLI::error("Given path '$uripath_f' is not a symlink.");
+
+        WP_CLI::debug("Removing symlink '$uripath_f'.");
+        unlink($uripath_f);
+        if (is_link($uripath_f))
+            WP_CLI::error("Unable to remove symlink '$uripath_f'.");
+
+        WP_CLI::debug("Creating directory in place of symlink '$uripath_f'.");
+        mkdir($uripath_f, $mode=0711);
+        if (!is_dir($uripath_f))
+            WP_CLI::error("Unable to create directory '$uripath_f'.");
+
+        $uripath_oc = $this->odercache['dir'] . "/$uripath_rh";
+        if (is_dir($uripath_oc)) {
+            $uripath_oc_esc = escapeshellarg($uripath_oc);
+            $this->runCmd("rm -rf -- $uripath_oc_esc",
+                "Failed removing odercache '$uripath_oc'.");
+        }
     }
 
     private function odercacheManageEnable($uripath_f, $uripath_rh)
@@ -651,6 +677,28 @@ class WP_CLI_Oderland extends WP_CLI_Command
                 $domain_name,
                 $domain_data['documentroot']
             );
+    }
+
+    /**
+     * Disables odercache for the given domain's directory.
+     *
+     * ## OPTIONS
+     *
+     * <domain>
+     * : The site's domain.
+     *
+     * <directory>
+     * : The directory (relative to the domain's root) to remove from odercache.
+     *
+     * ## EXAMPLES
+     *
+     *     wp oderland odercache-disable
+     * @when before_wp_load
+     * @subcommand odercache-disable
+     */
+    public function odercacheDisable($args, $assoc_args)
+    {
+        $this->odercacheManage('disable', $args, $assoc_args);
     }
 
     /**
